@@ -718,7 +718,12 @@ end module triangle
 module T_G
 contains
 
-subroutine GradT(qcel, x,y,z, cmap, TG, ss, ssp, delta, T_sur, face_num, n_cube, n_cellx, n_celly, n_cellz, face_normal)
+subroutine GradT(qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_force, delta,&
+				 T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix,&
+                 face_num, n_cube, n_cellx, n_celly, n_cellz, face_normal)
+				 
+				 
+
 
 !*******************************************************************!
 !
@@ -732,10 +737,11 @@ real, intent(in) :: qcel(:,:,:,:,:)
 real, intent(in) :: x(:,:,:,:),y(:,:,:,:),z(:,:,:,:)
 real, intent(in) :: cmap(:,:)
 real :: cube_xp, cube_xm, cube_yp, cube_ym, cube_zp, cube_zm
-real, intent(out), allocatable ::  TG(:), ss(:), ssp(:)
+real, intent(out), allocatable ::  TG(:), Tsurf(:), Psurf(:), Shear_stress(:)
+real, intent(out), allocatable ::  P_force(:,:), V_force(:,:)
 real, allocatable ::  vtemp(:,:), vntemp(:,:), tt(:,:)
 !real :: T_cmap
-real(kind = 8), intent(in) :: delta, T_sur
+real(kind = 8), intent(in) :: delta, T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix
 real :: vl, vn, vt, vt_inv, mu
 integer, intent(in) :: face_num
 integer, intent(in) :: n_cube, n_cellx, n_celly, n_cellz
@@ -753,15 +759,15 @@ real :: w_mmm, w_pmm, w_mpm, w_mmp, w_ppm, w_pmp, w_mpp, w_ppp !w at 8 corners.
 
 
 allocate(TG(face_num)) ! local Temperature gradient
-allocate(ss(face_num)) ! local wall stress (velocity term)
-allocate(ssp(face_num)) ! local wall stress (pressure term)
+allocate(Shear_stress(face_num)) ! local wall stress (velocity term)
+allocate(Psurf(face_num)) ! local wall stress (pressure term)
+allocate(Tsurf(face_num))
+allocate(P_force(3,face_num))
+allocate(V_force(3,face_num))
+
 allocate(tt(3,face_num)) ! tangential vector of facets
-!allocate(T_cmap(face_num))
 allocate(vtemp(3,face_num))
 allocate(vntemp(3,face_num))
-
-mu = 0.00185*((T_sur/298.0592)**1.5)&
-	*(298.0592+110.4)/(T_sur + 110.4)
 
 write(*,*) 'Mu is :', mu
 
@@ -802,27 +808,6 @@ do h = 1, face_num
 				jj = floor((cmap(2,h)-cube_ym)*temp)
 				kk = floor((cmap(3,h)-cube_zm)*temp)
 				
-				! i_ = (cmap(1,h)-cube_xm)*temp
-				! j_ = (cmap(2,h)-cube_ym)*temp
-				! k_ = (cmap(3,h)-cube_zm)*temp
-				
-				! if (ii < i_ .and. (i_-ii)>0.5) then
-					! i = ii+2
-				! else 
-					! i = ii+1
-				! end if
-				
-				! if (jj < j_.and. (j_-jj)>0.5) then
-					! j = jj+2
-				! else 
-					! j = jj+1
-				! end if
-				
-				! if (kk < k_.and. (k_-kk)>0.5) then
-					! k = kk+2
-				! else 
-					! k = kk+1
-				! end if
 				i = ii+1
 				j = jj+1
 				k = kk+1
@@ -855,8 +840,8 @@ do h = 1, face_num
 				w_mmm = qcel(4,i,j,k,l) / rho
 				ee =  qcel(5, i, j, k, l)
 				VV = u_mmm*u_mmm + v_mmm*v_mmm + w_mmm*w_mmm 
-				p_mmm = (ee-0.5*rho*VV)*(1.4d0 - 1.0d0)
-				T_mmm = p_mmm/(rho*287.0)
+				p_mmm = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)
+				T_mmm = p_mmm/(rho*R)
 				
 				rho = qcel(1,i+1,j,k,l)
 				u_pmm = qcel(2,i+1,j,k,l) / rho
@@ -864,8 +849,8 @@ do h = 1, face_num
 				w_pmm = qcel(4,i+1,j,k,l) / rho
 				ee =  qcel(5, i+1, j, k, l)
 				VV = u_pmm*u_pmm + v_pmm*v_pmm + w_pmm*w_pmm 
-				p_pmm = (ee-0.5*rho*VV)*(1.4d0 - 1.0d0)
-				T_pmm = p_pmm/(rho*287.0)
+				p_pmm = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)
+				T_pmm = p_pmm/(rho*R)
 				
 				rho = qcel(1,i,j+1,k,l)
 				u_mpm = qcel(2,i,j+1,k,l) / rho
@@ -873,8 +858,8 @@ do h = 1, face_num
 				w_mpm = qcel(4,i,j+1,k,l) / rho
 				ee =  qcel(5, i, j+1, k, l)
 				VV = u_mpm*u_mpm + v_mpm*v_mpm + w_mpm*w_mpm 
-				p_mpm = (ee-0.5*rho*VV)*(1.4d0 - 1.0d0)
-				T_mpm = p_mpm/(rho*287.0)
+				p_mpm = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)
+				T_mpm = p_mpm/(rho*R)
 				
 				rho = qcel(1,i,j,k+1,l)
 				u_mmp = qcel(2,i,j,k+1,l) / rho
@@ -882,8 +867,8 @@ do h = 1, face_num
 				w_mmp = qcel(4,i,j,k+1,l) / rho
 				ee =  qcel(5, i, j, k+1, l)
 				VV = u_mmp*u_mmp + v_mmp*v_mmp + w_mmp*w_mmp 
-				p_mmp = (ee-0.5*rho*VV)*(1.4d0 - 1.0d0)
-				T_mmp = p_mmp/(rho*287.0)
+				p_mmp = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)
+				T_mmp = p_mmp/(rho*R)
 				
 				rho = qcel(1,i+1,j+1,k,l)
 				u_ppm = qcel(2,i+1,j+1,k,l) / rho
@@ -891,8 +876,8 @@ do h = 1, face_num
 				w_ppm = qcel(4,i+1,j+1,k,l) / rho
 				ee =  qcel(5, i+1, j+1, k, l)
 				VV = u_ppm*u_ppm + v_ppm*v_ppm + w_ppm*w_ppm 
-				p_ppm = (ee-0.5*rho*VV)*(1.4d0 - 1.0d0)
-				T_ppm = p_ppm/(rho*287.0)
+				p_ppm = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)
+				T_ppm = p_ppm/(rho*R)
 				
 				rho = qcel(1,i+1,j,k+1,l)
 				u_pmp = qcel(2,i+1,j,k+1,l) / rho
@@ -900,8 +885,8 @@ do h = 1, face_num
 				w_pmp = qcel(4,i+1,j,k+1,l) / rho
 				ee =  qcel(5, i+1, j, k+1, l)
 				VV = u_pmp*u_pmp + v_pmp*v_pmp + w_pmp*w_pmp 
-				p_pmp = (ee-0.5*rho*VV)*(1.4d0 - 1.0d0)
-				T_pmp = p_pmp/(rho*287.0)
+				p_pmp = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)
+				T_pmp = p_pmp/(rho*R)
 				
 				rho = qcel(1,i,j+1,k+1,l)
 				u_mpp = qcel(2,i,j+1,k+1,l) / rho
@@ -909,8 +894,8 @@ do h = 1, face_num
 				w_mpp = qcel(4,i,j+1,k+1,l) / rho
 				ee =  qcel(5, i, j+1, k+1, l)
 				VV = u_mpp*u_mpp + v_mpp*v_mpp + w_mpp*w_mpp 
-				p_mpp = (ee-0.5*rho*VV)*(1.4d0 - 1.0d0)
-				T_mpp = p_mpp/(rho*287.0)
+				p_mpp = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)
+				T_mpp = p_mpp/(rho*R)
 				
 				rho = qcel(1,i+1,j+1,k+1,l)
 				u_ppp = qcel(2,i+1,j+1,k+1,l) / rho
@@ -918,8 +903,8 @@ do h = 1, face_num
 				w_ppp = qcel(4,i+1,j+1,k+1,l) / rho
 				ee =  qcel(5, i+1, j+1, k+1, l)
 				VV = u_ppp*u_ppp + v_ppp*v_ppp + w_ppp*w_ppp 
-				p_ppp = (ee-0.5*rho*VV)*(1.4d0 - 1.0d0)
-				T_ppp = p_ppp/(rho*287.0)
+				p_ppp = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)
+				T_ppp = p_ppp/(rho*R)
 				
 				T = (h_mmm*T_mmm + h_pmm*T_pmm + h_mpm*T_mpm + h_mmp*T_mmp &
 					+ h_ppm*T_ppm + h_pmp*T_pmp + h_mpp*T_mpp + h_ppp*T_ppp) &
@@ -940,9 +925,9 @@ do h = 1, face_num
 				w = (h_mmm*w_mmm + h_pmm*w_pmm + h_mpm*w_mpm + h_mmp*w_mmp &
 					+ h_ppm*w_ppm + h_pmp*w_pmp + h_mpp*w_mpp + h_ppp*w_ppp) &
 					* h_sum
-														
-				TG(h) = T+500/2.58*delta ! Q_fix =500
-				
+									
+				mu = mu0*((T/T0)**1.5)*(T0+110.4)/(T + 110.4)
+					
 				!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 				! this may be WRONG
 				!TG(h) = (T_sur - T)/delta * face_normal(1,h) ! oriented along width direction of the caivity
@@ -967,11 +952,17 @@ do h = 1, face_num
 				
 				vt = sqrt((u**2.0 + v**2.0 + w**2.0))
 				
-				ss(h) = mu*vt/delta
+				Shear_stress(h) = mu*vt/delta
+				V_force(1,h) = sign(Shear_stress(h),u)
+				V_force(2,h) = sign(Shear_stress(h),v)
+				V_force(3,h) = sign(Shear_stress(h),w)
 				
-				ss(h) = sign(ss(h),u)
+				Psurf(h) = p 
+				P_force(1,h) = p * face_normal(1,h)
+				P_force(2,h) = p * face_normal(2,h)
+				P_force(3,h) = p * face_normal(3,h)
 				
-				ssp(h) = p * face_normal(1,h) ! vector n· vector s (s: mainflow direction)
+				Tsurf(h) = T+Q_fix/(mu*Cv/Pr)*delta 
 				
 				
 				if (h .eq. 100) then
@@ -1038,6 +1029,9 @@ real, allocatable :: node_xyz(:,:,:)
 real, allocatable :: face_normal(:,:)
 real, allocatable :: centriod(:,:)
 real, allocatable :: cmap(:,:), TG(:), ss(:), ssp(:)
+real, allocatable :: Tsurf(:),Psurf(:),Shear_stress(:)
+real, allocatable :: P_force(:,:),V_force(:,:)
+
 real(kind=8) :: delta, T_sur, base_x
 integer :: ios, ierror
 
@@ -1055,16 +1049,39 @@ real :: Tg_avg, Area, ss_avg, ssp_avg
 real :: TG_up_avg
 real, allocatable:: Tg_local(:), Area_local(:), ss_local(:), ssp_local(:)
 
+real(kind = 8) :: mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix
+
 allocate(Tg_local(16))
 allocate(Area_local(16))
 allocate(ss_local(16))
 allocate(ssp_local(16))
 
+!!!! ================ USER INPUT ================ !!!!
+
+  input_stl_name = 'sphere_0.01m.stl'
+  input_mesh_name = 'mesh.g'
+  input_field_name = 'field_0000000100_RE100.q'
+
   delta = 3.6e-4  ! sqrt(2)*dx is the best
   
-  T_sur = 298.0592 !hot
+  T_fix = 0d0
+  Q_fix = 500d0
+
+  mu0 = 0.00185d0
+  Pr = 0.72
+  Cv = 717.5
+  Kcpv = 1.4d0
+  R = 287d0
+  
+  rho0 = 1.1842d0
+  p0 = 101300d0
+  T0 = p0/R/rho0
+
+  T_sur = T0
   height = 0.5144
   base_x = -10e-15  ! detect peak or valley
+  
+!!!! ================ USER INPUT ================ !!!!
   
   
   Tg_avg = 0.0
@@ -1072,10 +1089,6 @@ allocate(ssp_local(16))
   Tg_local = 0.0
   Area_local = 0.0
   
-  input_stl_name = 'sphere_0.01m.stl'
-  input_mesh_name = 'mesh.g'
-  input_field_name = 'field_0000000100_RE100.q'
-
 ! open STL file!
 write(*,*) "Open a stl file"
 open(unit=7, file = input_stl_name, status = 'old', iostat = ios)
@@ -1108,12 +1121,16 @@ write(*,*) "The face number is :", face_num
   allocate(node_xyz(3,3,face_num))
   allocate(centriod(4,face_num))
   allocate(cmap(3,face_num))
-  allocate(TG(face_num))
-  allocate(ss(face_num))
-  allocate(ssp(face_num))
-
-
   
+  allocate(Tsurf(face_num))
+  allocate(Psurf(face_num))
+  allocate(TG(face_num))
+  allocate(Shear_stress(face_num))
+  
+  allocate(P_force(3,face_num))
+  allocate(V_force(3,face_num))
+
+
 call stla_read(input_stl_name, face_num, node_xyz, face_normal, ierror )
 call triangles(face_num, node_xyz, face_normal,centriod, delta,cmap)
 
@@ -1164,32 +1181,36 @@ write(*,*) "Start reading mesh data..."
   
 	write(*,*) "End reading field data"
 	
-	call GradT(qcel, x,y,z, cmap, TG, ss, ssp, delta, T_sur, face_num, n_cube, n_cellx, n_celly, n_cellz, face_normal)
-
+	call GradT( qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_force, delta, &
+	            T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix, &
+	            face_num, n_cube, n_cellx, n_celly, n_cellz, face_normal)
+				
+				
 	write(*,*) 'output local average TG...'
 	
-	h_temp = height * 1.0/16.0  ! Stl files of rough case is different from the smooth case
+	! do hh = 1, 16
+		 ! do ii = 1, face_num	
+			! if (((hh-1)*h_temp - height/2.0) <= centriod(2,ii) .and. &
+				! (hh*h_temp- height/2.0) > centriod(2,ii)) then
+				! Tg_local(hh) = Tg_local(hh) + TG(ii)*centriod(4,ii)
+				! ss_local(hh) = ss_local(hh) + ss(ii)*centriod(4,ii)
+				! Area_local(hh) = Area_local(hh) + centriod(4,ii)
+			! endif
+		! end do
+		! !write(*,*) 'facet NUMBER:', ii
+		! !write(*,*) 'facet AREA:', centriod(4,ii)
+	! end do
 	
-	do hh = 1, 16
-		 do ii = 1, face_num	
-			if (((hh-1)*h_temp - height/2.0) <= centriod(2,ii) .and. &
-				(hh*h_temp- height/2.0) > centriod(2,ii)) then
-				Tg_local(hh) = Tg_local(hh) + TG(ii)*centriod(4,ii)
-				ss_local(hh) = ss_local(hh) + ss(ii)*centriod(4,ii)
-				!ssp_local(hh) = ssp_local(hh) + ssp(ii)*centriod(4,ii)
-				Area_local(hh) = Area_local(hh) + centriod(4,ii)
-			endif
-		end do
-		!write(*,*) 'facet NUMBER:', ii
-		!write(*,*) 'facet AREA:', centriod(4,ii)
-	end do
 	
-	do ii = 1, face_num
-		Tg_avg = Tg_avg + TG(ii)* centriod(4,ii)
-		ss_avg = ss_avg + ss(ii)*centriod(4,ii)
-		ssp_avg = ssp_avg + ssp(ii)*centriod(4,ii)
-		Area = Area + centriod(4,ii)
-	end do 
+	
+	! do ii = 1, face_num
+		! Tg_avg = Tg_avg + TG(ii)* centriod(4,ii)
+		! ss_avg = ss_avg + ss(ii)*centriod(4,ii)
+		! ssp_avg = ssp_avg + ssp(ii)*centriod(4,ii)
+		! Area = Area + centriod(4,ii)
+	! end do 
+	
+	
 	
 	! do jj = 1, face_num
 		! if (centriod(1,jj) >= base_x) then
@@ -1214,20 +1235,30 @@ write(*,*) "Start reading mesh data..."
 	!*==================================output=============================================*!
 	! output data 
 	! Wall shear stress
-    open(1, file = 'WSS_R_8points.csv', status='replace')  
-	write(1,*) "X, Y, Z, Wall_shear_stress"
+	
+	open(1, file = 'Surface_data.csv', status='replace')  
+	write(1,*) "X, Y, Z, Shear_stress, Psurf, Tsurf"
     do xx = 1,face_num  
-       write(1,*) centriod(1,xx),",",centriod(2,xx),",",centriod(3,xx),",",ss(xx)
+       write(1,*) centriod(1,xx),",",centriod(2,xx),",",centriod(3,xx),",",&
+	              Shear_stress(xx),",",Psurf(xx),",",Tsurf(xx)
     end do  
     close(1) 
 	
+	
+    ! open(1, file = 'WSS_R_8points.csv', status='replace')  
+	! write(1,*) "X, Y, Z, Wall_shear_stress"
+    ! do xx = 1,face_num  
+       ! write(1,*) centriod(1,xx),",",centriod(2,xx),",",centriod(3,xx),",",ss(xx)
+    ! end do  
+    ! close(1) 
+	
 	! Temperature gradient on the wall
-	open(2, file = 'TG_RL_Q3350.csv', status='replace')
-	write(2,*) "X, Y, Z, Temperature_Gradient"
-	do yy = 1,face_num  
-       write(2,*) centriod(1,yy),",",centriod(2,yy),",",centriod(3,yy),",", TG(yy)   
-    end do
-	close(2)
+	! open(2, file = 'TG_RL_Q3350.csv', status='replace')
+	! write(2,*) "X, Y, Z, Temperature_Gradient"
+	! do yy = 1,face_num  
+       ! write(2,*) centriod(1,yy),",",centriod(2,yy),",",centriod(3,yy),",", TG(yy)   
+    ! end do
+	! close(2)
 	!*==================================output=============================================*!
 	
 	
