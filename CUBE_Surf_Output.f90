@@ -733,6 +733,8 @@ subroutine GradT(qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_f
 !
 !*******************************************************************!
 
+implicit none
+
 real, intent(in) :: qcel(:,:,:,:,:)
 real, intent(in) :: x(:,:,:,:),y(:,:,:,:),z(:,:,:,:)
 real, intent(in) :: cmap(:,:)
@@ -769,7 +771,7 @@ allocate(tt(3,face_num)) ! tangential vector of facets
 allocate(vtemp(3,face_num))
 allocate(vntemp(3,face_num))
 
-write(*,*) 'Mu is :', mu
+write(*,*) 'Mu is :', mu0
 
 cube_xm = 0.0
 cube_xp = 0.0
@@ -962,8 +964,9 @@ do h = 1, face_num
 				P_force(2,h) = p * face_normal(2,h)
 				P_force(3,h) = p * face_normal(3,h)
 				
-				Tsurf(h) = T+Q_fix/(mu*Cv/Pr)*delta 
+				Tsurf(h) = T+Q_fix/(mu*Cv*Kcpv/Pr)*delta  ! for Iso heat flux
 				
+				TG(h) = (mu*Cv*Kcpv/Pr)*(T_fix - T)/delta  ! for Isothemral  
 				
 				if (h .eq. 100) then
 					write(*,*) 'at the facet ', h
@@ -1045,11 +1048,12 @@ real, allocatable :: z(:,:,:,:)  ! mesh
 
 integer :: p3dq(5) = (/1,2,3,4,5/)
 
-real :: Tg_avg, Area, ss_avg, ssp_avg
+real :: TG_avg, TS_avg, Area, Pfx_avg, Pfy_avg, Pfz_avg, Vfx_avg, Vfy_avg, Vfz_avg
 real :: TG_up_avg
-real, allocatable:: Tg_local(:), Area_local(:), ss_local(:), ssp_local(:)
 
 real(kind = 8) :: mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix
+
+real, allocatable:: Tg_local(:), Area_local(:), ss_local(:), ssp_local(:)
 
 allocate(Tg_local(16))
 allocate(Area_local(16))
@@ -1060,14 +1064,14 @@ allocate(ssp_local(16))
 
   input_stl_name = 'sphere_0.01m.stl'
   input_mesh_name = 'mesh.g'
-  input_field_name = 'field_0000000100_RE100.q'
+  input_field_name = 'field_0000000280.q'
 
-  delta = 3.6e-4  ! sqrt(2)*dx is the best
+  delta = 1.76e-4  ! sqrt(2)*dx is the best
   
-  T_fix = 0d0
-  Q_fix = 500d0
+  T_fix = 302.68d0
+  Q_fix = 5000d0
 
-  mu0 = 0.00185d0
+  mu0 = 0.00185
   Pr = 0.72
   Cv = 717.5
   Kcpv = 1.4d0
@@ -1084,10 +1088,20 @@ allocate(ssp_local(16))
 !!!! ================ USER INPUT ================ !!!!
   
   
-  Tg_avg = 0.0
+  TG_avg = 0.0
+  TS_avg = 0.0
   Area = 0.0
   Tg_local = 0.0
   Area_local = 0.0
+  
+  Pfx_avg = 0.0d0
+  Pfy_avg = 0.0d0 
+  Pfz_avg = 0.0d0
+  
+  Vfx_avg = 0.0d0
+  Vfy_avg = 0.0d0
+  Vfz_avg = 0.0d0
+  
   
 ! open STL file!
 write(*,*) "Open a stl file"
@@ -1203,12 +1217,25 @@ write(*,*) "Start reading mesh data..."
 	
 	
 	
-	! do ii = 1, face_num
-		! Tg_avg = Tg_avg + TG(ii)* centriod(4,ii)
+	do ii = 1, face_num
+	
+		TG_avg = TG_avg + TG(ii)*centriod(4,ii)
+		TS_avg = TS_avg + Tsurf(ii)*centriod(4,ii)
+		
 		! ss_avg = ss_avg + ss(ii)*centriod(4,ii)
 		! ssp_avg = ssp_avg + ssp(ii)*centriod(4,ii)
-		! Area = Area + centriod(4,ii)
-	! end do 
+		
+		Pfx_avg = Pfx_avg + P_force(1,ii)*centriod(4,ii)
+		Pfy_avg = Pfy_avg + P_force(2,ii)*centriod(4,ii)
+		Pfz_avg = Pfz_avg + P_force(3,ii)*centriod(4,ii)
+		
+		Vfx_avg = Vfx_avg + V_force(1,ii)*centriod(4,ii)
+		Vfy_avg = Vfy_avg + V_force(2,ii)*centriod(4,ii)
+		Vfz_avg = Vfz_avg + V_force(3,ii)*centriod(4,ii)
+		
+		Area = Area + centriod(4,ii)
+		
+	end do 
 	
 	
 	
@@ -1227,38 +1254,37 @@ write(*,*) "Start reading mesh data..."
 		! write(*,*) 'the Area is: ', Area_local(ww)
 	! end do
 
-	write(*,*) 'the Total TG*A is: ', Tg_avg
+	! write(*,*) 'the Total TG*A is: ', Tg_avg
+	! write(*,*) 'the Total Area is: ', Area
+	! write(*,*) 'the wall stress (velocity part) is: ', ss_avg
+	! write(*,*) 'the UP TG*A is: ', TG_up_avg
+	! write(*,*) 'the wall stress (pressure part) is: ', ssp_avg
+	
 	write(*,*) 'the Total Area is: ', Area
-	write(*,*) 'the wall stress (velocity part) is: ', ss_avg
-	write(*,*) 'the UP TG*A is: ', TG_up_avg
-	write(*,*) 'the wall stress (pressure part) is: ', ssp_avg
+	
+	write(*,*) 'Pfx is: ', Pfx_avg
+	write(*,*) 'Pfy is: ', Pfy_avg
+	write(*,*) 'Pfz is: ', Pfz_avg
+	
+	write(*,*) 'Vfx is: ', Vfx_avg
+	write(*,*) 'Vfy is: ', Vfy_avg
+	write(*,*) 'Vfz is: ', Vfz_avg
+	
+	write(*,*) 'TG is: ', TG_avg
+	write(*,*) 'Tsurf is: ', TS_avg/Area
+	
+	
 	!*==================================output=============================================*!
-	! output data 
-	! Wall shear stress
+	! output Surface data 
 	
 	open(1, file = 'Surface_data.csv', status='replace')  
-	write(1,*) "X, Y, Z, Shear_stress, Psurf, Tsurf"
+	write(1,*) "X, Y, Z, Shear_stress, Psurf, Tsurf, Heat_flux"
     do xx = 1,face_num  
        write(1,*) centriod(1,xx),",",centriod(2,xx),",",centriod(3,xx),",",&
-	              Shear_stress(xx),",",Psurf(xx),",",Tsurf(xx)
+	              Shear_stress(xx),",",Psurf(xx),",",Tsurf(xx),",",TG(xx)
     end do  
     close(1) 
 	
-	
-    ! open(1, file = 'WSS_R_8points.csv', status='replace')  
-	! write(1,*) "X, Y, Z, Wall_shear_stress"
-    ! do xx = 1,face_num  
-       ! write(1,*) centriod(1,xx),",",centriod(2,xx),",",centriod(3,xx),",",ss(xx)
-    ! end do  
-    ! close(1) 
-	
-	! Temperature gradient on the wall
-	! open(2, file = 'TG_RL_Q3350.csv', status='replace')
-	! write(2,*) "X, Y, Z, Temperature_Gradient"
-	! do yy = 1,face_num  
-       ! write(2,*) centriod(1,yy),",",centriod(2,yy),",",centriod(3,yy),",", TG(yy)   
-    ! end do
-	! close(2)
 	!*==================================output=============================================*!
 	
 	
