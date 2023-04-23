@@ -690,7 +690,7 @@ do j = 1,face_num
 		! write(*,*) 'the edge length s:', s
 	! end if
 	!!!!!!!!!!!!!!!!!
-	centriod(4,j) = sqrt(s*(s-a)*(s-b)*(s-c))
+	centriod(4,j) = (sqrt(abs(s*(s-a)*(s-b)*(s-c))))
 	
 	temp2 = delta/sqrt(face_normal(1,j)**2.0 +&
 			face_normal(2,j)**2.0 +&
@@ -1064,12 +1064,12 @@ allocate(ssp_local(16))
 
   input_stl_name = 'sphere_0.01m.stl'
   input_mesh_name = 'mesh.g'
-  input_field_name = 'field_0000000280.q'
+  input_field_name = 'field_0000000200.q'
 
   delta = 1.76e-4  ! sqrt(2)*dx is the best
   
   T_fix = 302.68d0
-  Q_fix = 5000d0
+  Q_fix = 20000d0
 
   mu0 = 0.00185
   Pr = 0.72
