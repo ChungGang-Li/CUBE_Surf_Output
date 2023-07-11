@@ -692,12 +692,14 @@ do j = 1,face_num
 	!!!!!!!!!!!!!!!!!
 	centriod(4,j) = (sqrt(abs(s*(s-a)*(s-b)*(s-c))))
 	
-	temp2 = delta/sqrt(face_normal(1,j)**2.0 +&
-			face_normal(2,j)**2.0 +&
-			face_normal(3,j)**2.0)
+	! temp2 = delta/sqrt(face_normal(1,j)**2.0 +&
+			! face_normal(2,j)**2.0 +&
+			! face_normal(3,j)**2.0)
+			
 	do k = 1,3		
-		cmap(k,j) = temp2*face_normal(k,j)+centriod(k,j)
+		cmap(k,j) = centriod(k,j)
 	end do
+	
 end do
 !Ren: Error Facet
 	! write(*,*) 'the error facet A:', centriod(4,15779)
@@ -737,7 +739,7 @@ implicit none
 
 real, intent(in) :: qcel(:,:,:,:,:)
 real, intent(in) :: x(:,:,:,:),y(:,:,:,:),z(:,:,:,:)
-real, intent(in) :: cmap(:,:)
+real, intent(inout) :: cmap(:,:)
 real :: cube_xp, cube_xm, cube_yp, cube_ym, cube_zp, cube_zm
 real, intent(out), allocatable ::  TG(:), Tsurf(:), Psurf(:), Shear_stress(:)
 real, intent(out), allocatable ::  P_force(:,:), V_force(:,:)
@@ -792,6 +794,39 @@ i_ = 0.0
 j_ = 0.0
 k_ = 0.0
 
+
+	
+	do h = 1, face_num
+	
+		do l = 1, n_cube
+		
+			cellsize = delta*abs(x(1,1,1,l)-x(2,1,1,l))
+			temp = 1.0/cellsize
+			cube_xm = x(1,1,1,l) 
+			cube_xp = x(n_cellx,1,1,l) 
+			cube_ym = y(1,1,1,l) 
+			cube_yp = y(1,n_celly,1,l) 
+			cube_zm = z(1,1,1,l) 
+			cube_zp = z(1,1,n_cellz,l) 
+			
+			if (cube_xp > cmap(1,h) .and. cube_xm <= cmap(1,h)&
+				.and. cube_yp > cmap(2,h) .and. cube_ym <= cmap(2,h)&
+				.and. cube_zp > cmap(3,h) .and. cube_zm <= cmap(3,h)) then
+				
+				cmap(1,h) = cellsize*face_normal(1,h)+cmap(1,h)
+				cmap(2,h) = cellsize*face_normal(2,h)+cmap(2,h)
+				cmap(3,h) = cellsize*face_normal(3,h)+cmap(3,h)
+				
+			    EXIT  
+				
+			endif
+				
+		enddo
+		
+	enddo
+	
+
+
 write(*,*) 'the cube number is:', n_cube
 do h = 1, face_num
 	do l = 1, n_cube
@@ -821,7 +856,7 @@ do h = 1, face_num
 					write(*,*) 'k is:', k
 					write(*,*) 'the face number is:', h
 					write(*,*) 'the Cube number is:', l
-					return
+					cycle
 				end if 
 				
 				! Trilinear Interpolation
@@ -954,7 +989,7 @@ do h = 1, face_num
 				
 				vt = sqrt((u**2.0 + v**2.0 + w**2.0))
 				
-				Shear_stress(h) = mu*vt/delta
+				Shear_stress(h) = mu*vt/(delta*cellsize)
 				V_force(1,h) = sign(Shear_stress(h),u)
 				V_force(2,h) = sign(Shear_stress(h),v)
 				V_force(3,h) = sign(Shear_stress(h),w)
@@ -964,9 +999,9 @@ do h = 1, face_num
 				P_force(2,h) = p * face_normal(2,h)
 				P_force(3,h) = p * face_normal(3,h)
 				
-				Tsurf(h) = T+Q_fix/(mu*Cv*Kcpv/Pr)*delta  ! for Iso heat flux
+				Tsurf(h) = T+Q_fix/(mu*Cv*Kcpv/Pr)*(delta*cellsize)  ! for Iso heat flux
 				
-				TG(h) = (mu*Cv*Kcpv/Pr)*(T_fix - T)/delta  ! for Isothemral  
+				TG(h) = (mu*Cv*Kcpv/Pr)*(T_fix - T)/(delta*cellsize)  ! for Isothemral  
 				
 				if (h .eq. 100) then
 					write(*,*) 'at the facet ', h
@@ -1063,12 +1098,12 @@ allocate(ssp_local(16))
 !!!! ================ USER INPUT ================ !!!!
 
   input_stl_name = 'sphere_0.01m.stl'
-  input_mesh_name = 'mesh.g'
-  input_field_name = 'field_0000000200.q'
+  input_mesh_name = 'mesh_less.g'
+  input_field_name = 'field_0000000418_RE100.q'
 
-  delta = 1.76e-4  ! sqrt(2)*dx is the best
+  delta = sqrt(3d0)  ! sqrt(2)*dx is the best
   
-  T_fix = 302.68d0
+  T_fix = 0.0d0
   Q_fix = 20000d0
 
   mu0 = 0.00185
@@ -1277,7 +1312,7 @@ write(*,*) "Start reading mesh data..."
 	!*==================================output=============================================*!
 	! output Surface data 
 	
-	open(1, file = 'Surface_data.csv', status='replace')  
+	open(1, file = 'Surface_data2.csv', status='replace')  
 	write(1,*) "X, Y, Z, Shear_stress, Psurf, Tsurf, Heat_flux"
     do xx = 1,face_num  
        write(1,*) centriod(1,xx),",",centriod(2,xx),",",centriod(3,xx),",",&
