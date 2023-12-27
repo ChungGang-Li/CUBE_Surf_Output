@@ -720,7 +720,7 @@ end module triangle
 module T_G
 contains
 
-subroutine GradT(qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_force, delta,&
+subroutine GradT(qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_force, Thrust, delta,&
 				 T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix,&
                  face_num, n_cube, n_cellx, n_celly, n_cellz, face_normal)
 				 
@@ -742,7 +742,7 @@ real, intent(in) :: x(:,:,:,:),y(:,:,:,:),z(:,:,:,:)
 real, intent(inout) :: cmap(:,:)
 real :: cube_xp, cube_xm, cube_yp, cube_ym, cube_zp, cube_zm
 real, intent(out), allocatable ::  TG(:), Tsurf(:), Psurf(:), Shear_stress(:)
-real, intent(out), allocatable ::  P_force(:,:), V_force(:,:)
+real, intent(out), allocatable ::  P_force(:,:), V_force(:,:), Thrust(:,:)
 real, allocatable ::  vtemp(:,:), vntemp(:,:), tt(:,:)
 !real :: T_cmap
 real(kind = 8), intent(in) :: delta, T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix
@@ -769,6 +769,7 @@ allocate(Psurf(face_num)) ! local wall stress (pressure term)
 allocate(Tsurf(face_num))
 allocate(P_force(3,face_num))
 allocate(V_force(3,face_num))
+allocate(Thrust(3,face_num))
 
 allocate(tt(3,face_num)) ! tangential vector of facets
 allocate(vtemp(3,face_num))
@@ -1001,6 +1002,10 @@ do h = 1, face_num
 				P_force(2,h) = -p * face_normal(2,h)
 				P_force(3,h) = -p * face_normal(3,h)
 				
+				Thrust(1,h) = (P/T*U*U+P-p0) * face_normal(1,h)
+				Thrust(2,h) = (P/T*V*V+P-p0) * face_normal(2,h)
+				Thrust(3,h) = (P/T*W*W+P-p0) * face_normal(3,h)
+				
 				Tsurf(h) = T+Q_fix/(mu*Cv*Kcpv/Pr)*(delta*cellsize)  ! for Iso heat flux
 				
 				TG(h) = (mu*Cv*Kcpv/Pr)*(T_fix - T)/(delta*cellsize)  ! for Isothemral  
@@ -1070,7 +1075,7 @@ real, allocatable :: face_normal(:,:)
 real, allocatable :: centriod(:,:)
 real, allocatable :: cmap(:,:), TG(:), ss(:), ssp(:)
 real, allocatable :: Tsurf(:),Psurf(:),Shear_stress(:)
-real, allocatable :: P_force(:,:),V_force(:,:)
+real, allocatable :: P_force(:,:),V_force(:,:),Thrust(:,:)
 
 real(kind=8) :: delta, T_sur, base_x
 integer :: ios, ierror
@@ -1086,6 +1091,7 @@ real, allocatable :: z(:,:,:,:)  ! mesh
 integer :: p3dq(5) = (/1,2,3,4,5/)
 
 real :: TG_avg, TS_avg, Area, Pfx_avg, Pfy_avg, Pfz_avg, Vfx_avg, Vfy_avg, Vfz_avg
+real :: Thrustx_avg,Thrusty_avg,Thrustz_avg
 real :: TG_up_avg
 
 real(kind = 8) :: mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix
@@ -1180,6 +1186,7 @@ write(*,*) "The face number is :", face_num
   
   allocate(P_force(3,face_num))
   allocate(V_force(3,face_num))
+  allocate(Thrust(3,face_num))
 
 
 call stla_read(input_stl_name, face_num, node_xyz, face_normal, ierror )
@@ -1232,7 +1239,7 @@ write(*,*) "Start reading mesh data..."
   
 	write(*,*) "End reading field data"
 	
-	call GradT( qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_force, delta, &
+	call GradT( qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_force, Thrust, delta, &
 	            T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix, &
 	            face_num, n_cube, n_cellx, n_celly, n_cellz, face_normal)
 				
@@ -1270,6 +1277,10 @@ write(*,*) "Start reading mesh data..."
 		Vfy_avg = Vfy_avg + V_force(2,ii)*centriod(4,ii)
 		Vfz_avg = Vfz_avg + V_force(3,ii)*centriod(4,ii)
 		
+		Thrustx_avg = Thrustx_avg+ Thrust(1,ii)*centriod(4,ii)
+		Thrusty_avg = Thrusty_avg+ Thrust(2,ii)*centriod(4,ii)
+		Thrustz_avg = Thrustz_avg+ Thrust(3,ii)*centriod(4,ii)
+		
 		Area = Area + centriod(4,ii)
 		
 	end do 
@@ -1306,6 +1317,10 @@ write(*,*) "Start reading mesh data..."
 	write(*,*) 'Vfx is: ', Vfx_avg
 	write(*,*) 'Vfy is: ', Vfy_avg
 	write(*,*) 'Vfz is: ', Vfz_avg
+	
+	write(*,*) 'Thrustx_avg is: ', Thrustx_avg
+	write(*,*) 'Thrusty_avg is: ', Thrusty_avg
+	write(*,*) 'Thrustz_avg is: ', Thrustz_avg
 	
 	write(*,*) 'TG is: ', TG_avg
 	write(*,*) 'Tsurf is: ', TS_avg/Area
