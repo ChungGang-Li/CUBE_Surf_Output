@@ -760,6 +760,7 @@ real :: rho, ee, u, v, w, VV, p, T
 real :: u_mmm, u_pmm, u_mpm, u_mmp, u_ppm, u_pmp, u_mpp, u_ppp !u at 8 corners.
 real :: v_mmm, v_pmm, v_mpm, v_mmp, v_ppm, v_pmp, v_mpp, v_ppp !v at 8 corners.
 real :: w_mmm, w_pmm, w_mpm, w_mmp, w_ppm, w_pmp, w_mpp, w_ppp !w at 8 corners.
+real :: TT0		   
 
 
 allocate(TG(face_num)) ! local Temperature gradient
@@ -794,6 +795,7 @@ i_ = 0.0
 j_ = 0.0
 k_ = 0.0
 
+TT0 = 273.15			
 
 	
 	do h = 1, face_num
@@ -963,7 +965,7 @@ do h = 1, face_num
 					+ h_ppm*w_ppm + h_pmp*w_pmp + h_mpp*w_mpp + h_ppp*w_ppp) &
 					* h_sum
 									
-				mu = mu0*((T/T0)**1.5)*(T0+110.4)/(T + 110.4)
+				mu = mu0*((T/TT0)**1.5)*(TT0+110.4)/(T + 110.4)
 					
 				!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 				! this may be WRONG
@@ -995,9 +997,9 @@ do h = 1, face_num
 				V_force(3,h) = sign(Shear_stress(h),w)
 				
 				Psurf(h) = p 
-				P_force(1,h) = p * face_normal(1,h)
-				P_force(2,h) = p * face_normal(2,h)
-				P_force(3,h) = p * face_normal(3,h)
+				P_force(1,h) = -p * face_normal(1,h)
+				P_force(2,h) = -p * face_normal(2,h)
+				P_force(3,h) = -p * face_normal(3,h)
 				
 				Tsurf(h) = T+Q_fix/(mu*Cv*Kcpv/Pr)*(delta*cellsize)  ! for Iso heat flux
 				
