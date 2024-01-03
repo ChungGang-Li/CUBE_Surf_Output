@@ -717,6 +717,97 @@ end do
 end subroutine triangles
 end module triangle
 
+
+
+
+
+
+
+module lag3D_reader
+contains
+
+subroutine lag3D_read(input_lag_name, face_num, node_xyz, face_normal,centriod, delta,cmap)
+
+implicit none
+character ( len = 127 ), intent(in):: input_lag_name
+integer, intent(in):: face_num
+real, intent(in) :: node_xyz(:,:,:)
+real, intent(out) :: face_normal(:,:)
+real, intent(out) :: centriod(:,:)
+real, intent(out) :: cmap(:,:)
+real(kind=8), intent(in) :: delta
+real(kind=8):: s, a,b,c, dx,dy,dz
+integer:: i,j,k,ii,jj
+real(kind=8) :: temp1, temp2
+
+integer :: ios, ierror
+character(len=200) :: line
+real(kind=8) :: xx,yy,zz,Nx,Ny,Nz
+
+!allocate (centriod(4,face_num))
+!allocate (cmap(3,face_num))
+
+centriod = 0.0
+cmap = 0.0
+s = 0.0
+a = 0.0
+b = 0.0
+c = 0.0
+
+temp1 = 1.0/3.0
+temp2 = 0.0
+
+
+write(*,*) "Open lag3D file"
+
+open(unit=34, form='formatted', file=trim(input_lag_name) ,status = 'old', iostat = ios)
+
+
+  if (ios /= 0) then
+     print *, "can not open lag file", trim(input_lag_name)
+     stop
+  endif
+  
+ read(34, '(A)') line
+
+
+do j = 1,face_num
+
+	read(34, *, iostat=ios) xx,yy,zz,Nx,Ny,Nz
+	
+	centriod(1,j) = xx
+	centriod(2,j) = yy
+	centriod(3,j) = zz
+	
+	cmap(1,j) = xx
+	cmap(2,j) = yy
+	cmap(3,j) = zz
+	
+	face_normal(1,j) = Nx
+	face_normal(2,j) = Ny
+	face_normal(3,j) = Nz
+	
+enddo
+
+close(34)
+
+
+! do j = 1,face_num 
+
+	! write(*,*) centriod(1,j),centriod(2,j),centriod(3,j), &
+	           ! face_normal(1,j),face_normal(2,j),face_normal(3,j)
+
+! enddo
+
+
+end subroutine lag3D_read
+end module lag3D_reader
+
+
+
+
+
+
 module T_G
 contains
 
@@ -842,7 +933,7 @@ do h = 1, face_num
 		cube_zp = z(1,1,n_cellz,l) 
 		if (cube_xp > cmap(1,h) .and. cube_xm < cmap(1,h)&
 			.and. cube_yp > cmap(2,h) .and. cube_ym < cmap(2,h)&
-			.and. cube_zp > cmap(3,h) .and. cube_zm <=cmap(3,h)) then
+			.and. cube_zp > cmap(3,h) .and. cube_zm < cmap(3,h)) then
 				ii = floor((cmap(1,h)-cube_xm)*temp)
 				jj = floor((cmap(2,h)-cube_ym)*temp)
 				kk = floor((cmap(3,h)-cube_zm)*temp)
@@ -851,15 +942,15 @@ do h = 1, face_num
 				j = jj+1
 				k = kk+1
 				
-				if(i + 1 > 17 .or. j + 1 > 17 .or. k + 1 > 17)then
-					write(*,*) 'Error in locating points in the Cube'
-					write(*,*) 'i is:', i
-					write(*,*) 'j is:', j
-					write(*,*) 'k is:', k
-					write(*,*) 'the face number is:', h
-					write(*,*) 'the Cube number is:', l
-					cycle
-				end if 
+				! if(i + 1 > 17 .or. j + 1 > 17 .or. k + 1 > 17)then
+					! write(*,*) 'Error in locating points in the Cube'
+					! write(*,*) 'i is:', i
+					! write(*,*) 'j is:', j
+					! write(*,*) 'k is:', k
+					! write(*,*) 'the face number is:', h
+					! write(*,*) 'the Cube number is:', l
+					! cycle
+				! end if 
 				
 				! Trilinear Interpolation
 				h_mmm = abs(cmap(1,h)-x(i+1,j+1,k+1,l))*abs(cmap(2,h)-y(i+1,j+1,k+1,l))*abs(cmap(3,h)-z(i+1,j+1,k+1,l))
@@ -870,6 +961,7 @@ do h = 1, face_num
 				h_pmp = abs(cmap(1,h)-x(i,j+1,k,l))*abs(cmap(2,h)-y(i,j+1,k,l))*abs(cmap(3,h)-z(i,j+1,k,l))
 				h_mpp = abs(cmap(1,h)-x(i+1,j,k,l))*abs(cmap(2,h)-y(i+1,j,k,l))*abs(cmap(3,h)-z(i+1,j,k,l))
 				h_ppp = abs(cmap(1,h)-x(i,j,k,l))*abs(cmap(2,h)-y(i,j,k,l))*abs(cmap(3,h)-z(i,j,k,l))
+				
 				
 				h_sum = 1.0/(h_mmm + h_pmm + h_mpm + h_mmp + h_ppm + h_pmp + h_mpp + h_ppp)
 				
@@ -944,6 +1036,7 @@ do h = 1, face_num
 				VV = u_ppp*u_ppp + v_ppp*v_ppp + w_ppp*w_ppp 
 				p_ppp = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)-B
 				T_ppp = p_ppp/(rho*R)
+
 				
 				T = (h_mmm*T_mmm + h_pmm*T_pmm + h_mpm*T_mpm + h_mmp*T_mmp &
 					+ h_ppm*T_ppm + h_pmp*T_pmp + h_mpp*T_mpp + h_ppp*T_ppp) &
@@ -1058,6 +1151,7 @@ program stl_detail
 !*************************************************************!
 use Stlreader
 use triangle
+use lag3D_reader
 use T_G
 
 implicit none
@@ -1065,6 +1159,9 @@ implicit none
 character ( len = 255 ) :: input_stl_name
 character ( len = 255 ) :: input_mesh_name
 character ( len = 255 ) :: input_field_name
+character ( len = 255 ) :: input_lag_name
+integer :: input_method
+
 integer :: face_num
 logical :: read_text
 character(len=127) :: line
@@ -1104,9 +1201,12 @@ allocate(ssp_local(16))
 
 !!!! ================ USER INPUT ================ !!!!
 
-  input_stl_name = 'sphere_0.01m.stl'
-  input_mesh_name = 'mesh_less.g'
-  input_field_name = 'field_0000000418_RE100.q'
+  input_stl_name = 'sphere_0.01m.stl'  
+  input_lag_name = 'lag.3D'
+  input_mesh_name = 'mesh.g'
+  input_field_name = 'field_0000000800_RE200.q'
+  
+  input_method = 2 ! 1:using STL 2:using lag particles
 
   delta = sqrt(3d0)  ! sqrt(2)*dx is the best
   
@@ -1149,29 +1249,54 @@ allocate(ssp_local(16))
   
   
 ! open STL file!
-write(*,*) "Open a stl file"
-open(unit=7, file = input_stl_name, status = 'old', iostat = ios)
-write(*,*) "Start counting face number"
 
-face_num = 0
-ierror = 0
-read_text = .false.
+if(input_method == 1) then 
 
-do
-	read(7, '(a)', iostat = ios) line
+	write(*,*) "Open a stl file"
+	open(unit=7, file = input_stl_name, status = 'old', iostat = ios)
+	write(*,*) "Start counting face number"
 	
-	if (read_text) then
+	
+	do
+		read(7, '(a)', iostat = ios) line
+		
+		if (read_text) then
+			face_num = face_num + 1
+			read_text = .false.
+		end if
+		
+		read_text = (line(1:5) == 'facet')
+		
+		if (line(1:8)=='endsolid') then
+			exit
+		end if
+	end do
+	
+elseif (input_method == 2) then
+
+	write(*,*) "Open a stl file"
+	open(unit=7, file = input_lag_name, status = 'old', iostat = ios)
+	write(*,*) "Start counting lag particle number"
+	
+	face_num = -1
+	ierror = 0
+	read_text = .false.
+
+	do
+		read(7, '(a)', iostat = ios) line
+		
+		if (ios /= 0) then
+			exit ! 文件读取结束
+		 endif
+		
 		face_num = face_num + 1
-		read_text = .false.
-	end if
+		
+	end do
 	
-	read_text = (line(1:5) == 'facet')
-	
-	if (line(1:8)=='endsolid') then
-		exit
-	end if
-end do
+endif
+
 	close(unit = 7)
+	
 write(*,*) "end counting"
 
 write(*,*) "The face number is :", face_num
@@ -1190,9 +1315,16 @@ write(*,*) "The face number is :", face_num
   allocate(V_force(3,face_num))
   allocate(Thrust(3,face_num))
 
+if(input_method == 1) then 
 
-call stla_read(input_stl_name, face_num, node_xyz, face_normal, ierror )
-call triangles(face_num, node_xyz, face_normal,centriod, delta,cmap)
+	call stla_read(input_stl_name, face_num, node_xyz, face_normal, ierror )
+	call triangles(face_num, node_xyz, face_normal,centriod, delta,cmap)
+	
+elseif(input_method == 2) then
+
+	call lag3D_read(input_lag_name, face_num, node_xyz, face_normal, centriod, delta,cmap)
+
+endif
 
 ! open and read flow field file
 write(*,*) "Start reading mesh data..."
@@ -1244,7 +1376,6 @@ write(*,*) "Start reading mesh data..."
 	call GradT( qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_force, Thrust, delta, &
 	            T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix, B, &
 	            face_num, n_cube, n_cellx, n_celly, n_cellz, face_normal)
-				
 				
 	write(*,*) 'output local average TG...'
 	
