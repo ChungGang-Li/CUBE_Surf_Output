@@ -813,7 +813,7 @@ contains
 
 subroutine GradT(qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_force, Thrust, delta,&
 				 T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix, B, &
-                 face_num, n_cube, n_cellx, n_celly, n_cellz, face_normal)
+                 face_num, n_cube, n_cellx, n_celly, n_cellz, face_normal,cell_area)
 				 
 				 
 
@@ -841,6 +841,7 @@ real :: vl, vn, vt, vt_inv, mu
 integer, intent(in) :: face_num
 integer, intent(in) :: n_cube, n_cellx, n_celly, n_cellz
 real, intent(in) :: face_normal(:,:)
+real, intent(out) :: cell_area(:)
 integer :: h,i,j,k,l,ii,jj,kk, iii, jjj, kkk
 real :: i_,j_, k_
 real :: cellsize, temp, h_sum
@@ -902,9 +903,9 @@ TT0 = 273.15
 			cube_zm = z(1,1,1,l) 
 			cube_zp = z(1,1,n_cellz,l) 
 			
-			if (cube_xp > cmap(1,h) .and. cube_xm <= cmap(1,h)&
-				.and. cube_yp > cmap(2,h) .and. cube_ym <= cmap(2,h)&
-				.and. cube_zp > cmap(3,h) .and. cube_zm <= cmap(3,h)) then
+			if (cube_xp > cmap(1,h) .and. cube_xm < cmap(1,h)&
+				.and. cube_yp > cmap(2,h) .and. cube_ym < cmap(2,h)&
+				.and. cube_zp > cmap(3,h) .and. cube_zm < cmap(3,h)) then
 				
 				cmap(1,h) = cellsize*face_normal(1,h)+cmap(1,h)
 				cmap(2,h) = cellsize*face_normal(2,h)+cmap(2,h)
@@ -942,15 +943,21 @@ do h = 1, face_num
 				j = jj+1
 				k = kk+1
 				
-				! if(i + 1 > 17 .or. j + 1 > 17 .or. k + 1 > 17)then
-					! write(*,*) 'Error in locating points in the Cube'
-					! write(*,*) 'i is:', i
-					! write(*,*) 'j is:', j
-					! write(*,*) 'k is:', k
-					! write(*,*) 'the face number is:', h
-					! write(*,*) 'the Cube number is:', l
-					! cycle
-				! end if 
+				
+				
+				cell_area(h) = cellsize*cellsize
+				
+			    ! write(*,*) cellsize
+
+				if(i + 1 > 17 .or. j + 1 > 17 .or. k + 1 > 17)then
+					write(*,*) 'Error in locating points in the Cube'
+					write(*,*) 'i is:', i
+					write(*,*) 'j is:', j
+					write(*,*) 'k is:', k
+					write(*,*) 'the face number is:', h
+					write(*,*) 'the Cube number is:', l
+					cycle
+				end if 
 				
 				! Trilinear Interpolation
 				h_mmm = abs(cmap(1,h)-x(i+1,j+1,k+1,l))*abs(cmap(2,h)-y(i+1,j+1,k+1,l))*abs(cmap(3,h)-z(i+1,j+1,k+1,l))
@@ -1093,10 +1100,13 @@ do h = 1, face_num
 				P_force(1,h) = -p * face_normal(1,h)
 				P_force(2,h) = -p * face_normal(2,h)
 				P_force(3,h) = -p * face_normal(3,h)
+				U = vtemp(1,h)
+				V = vtemp(2,h)
+				W = vtemp(3,h)
 				
-				Thrust(1,h) = (P/T*U*U+P-p0) * face_normal(1,h)
-				Thrust(2,h) = (P/T*V*V+P-p0) * face_normal(2,h)
-				Thrust(3,h) = (P/T*W*W+P-p0) * face_normal(3,h)
+				Thrust(1,h) = (P/T/R*U*U+P-p0) * face_normal(1,h)
+				Thrust(2,h) = (P/T/R*V*V+P-p0) * face_normal(2,h)
+				Thrust(3,h) = (P/T/R*W*W+P-p0) * face_normal(3,h)
 				
 				Tsurf(h) = T+Q_fix/(mu*Cv*Kcpv/Pr)*(delta*cellsize)  ! for Iso heat flux
 				
@@ -1169,6 +1179,7 @@ logical :: eqi_str
 real, allocatable :: node_xyz(:,:,:)
 real, allocatable :: face_normal(:,:)
 real, allocatable :: centriod(:,:)
+real, allocatable :: cell_area(:)
 real, allocatable :: cmap(:,:), TG(:), ss(:), ssp(:)
 real, allocatable :: Tsurf(:),Psurf(:),Shear_stress(:)
 real, allocatable :: P_force(:,:),V_force(:,:),Thrust(:,:)
@@ -1248,6 +1259,11 @@ allocate(ssp_local(16))
   Vfz_avg = 0.0d0
   
   
+  Thrustx_avg = 0.0d0
+  Thrusty_avg = 0.0d0 
+  Thrustz_avg = 0.0d0 
+  
+  
 ! open STL file!
 
 if(input_method == 1) then 
@@ -1304,6 +1320,7 @@ write(*,*) "The face number is :", face_num
   allocate(face_normal(3,face_num))
   allocate(node_xyz(3,3,face_num))
   allocate(centriod(4,face_num))
+  allocate(cell_area(face_num))
   allocate(cmap(3,face_num))
   
   allocate(Tsurf(face_num))
@@ -1375,22 +1392,19 @@ write(*,*) "Start reading mesh data..."
 	
 	call GradT( qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_force, Thrust, delta, &
 	            T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix, B, &
-	            face_num, n_cube, n_cellx, n_celly, n_cellz, face_normal)
+	            face_num, n_cube, n_cellx, n_celly, n_cellz, face_normal,cell_area)
 				
 	write(*,*) 'output local average TG...'
 	
-	! do hh = 1, 16
-		 ! do ii = 1, face_num	
-			! if (((hh-1)*h_temp - height/2.0) <= centriod(2,ii) .and. &
-				! (hh*h_temp- height/2.0) > centriod(2,ii)) then
-				! Tg_local(hh) = Tg_local(hh) + TG(ii)*centriod(4,ii)
-				! ss_local(hh) = ss_local(hh) + ss(ii)*centriod(4,ii)
-				! Area_local(hh) = Area_local(hh) + centriod(4,ii)
-			! endif
-		! end do
-		! !write(*,*) 'facet NUMBER:', ii
-		! !write(*,*) 'facet AREA:', centriod(4,ii)
-	! end do
+	
+	
+	if(input_method == 2) then
+		
+		do ii = 1, face_num 
+			centriod(4,ii) = cell_area(ii)
+		enddo
+		
+	endif
 	
 	
 	
