@@ -721,7 +721,7 @@ module T_G
 contains
 
 subroutine GradT(qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_force, Thrust, delta,&
-				 T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix,&
+				 T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix, B, &
                  face_num, n_cube, n_cellx, n_celly, n_cellz, face_normal)
 				 
 				 
@@ -745,7 +745,7 @@ real, intent(out), allocatable ::  TG(:), Tsurf(:), Psurf(:), Shear_stress(:)
 real, intent(out), allocatable ::  P_force(:,:), V_force(:,:), Thrust(:,:)
 real, allocatable ::  vtemp(:,:), vntemp(:,:), tt(:,:)
 !real :: T_cmap
-real(kind = 8), intent(in) :: delta, T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix
+real(kind = 8), intent(in) :: delta, T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix, B
 real :: vl, vn, vt, vt_inv, mu
 integer, intent(in) :: face_num
 integer, intent(in) :: n_cube, n_cellx, n_celly, n_cellz
@@ -797,7 +797,6 @@ j_ = 0.0
 k_ = 0.0
 
 TT0 = 273.15			
-
 	
 	do h = 1, face_num
 	
@@ -841,9 +840,9 @@ do h = 1, face_num
 		cube_yp = y(1,n_celly,1,l) 
 		cube_zm = z(1,1,1,l) 
 		cube_zp = z(1,1,n_cellz,l) 
-		if (cube_xp > cmap(1,h) .and. cube_xm <= cmap(1,h)&
-			.and. cube_yp > cmap(2,h) .and. cube_ym <= cmap(2,h)&
-			.and. cube_zp > cmap(3,h) .and. cube_zm <= cmap(3,h)) then
+		if (cube_xp > cmap(1,h) .and. cube_xm < cmap(1,h)&
+			.and. cube_yp > cmap(2,h) .and. cube_ym < cmap(2,h)&
+			.and. cube_zp > cmap(3,h) .and. cube_zm <=cmap(3,h)) then
 				ii = floor((cmap(1,h)-cube_xm)*temp)
 				jj = floor((cmap(2,h)-cube_ym)*temp)
 				kk = floor((cmap(3,h)-cube_zm)*temp)
@@ -880,7 +879,7 @@ do h = 1, face_num
 				w_mmm = qcel(4,i,j,k,l) / rho
 				ee =  qcel(5, i, j, k, l)
 				VV = u_mmm*u_mmm + v_mmm*v_mmm + w_mmm*w_mmm 
-				p_mmm = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)
+				p_mmm = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)-B
 				T_mmm = p_mmm/(rho*R)
 				
 				rho = qcel(1,i+1,j,k,l)
@@ -889,7 +888,7 @@ do h = 1, face_num
 				w_pmm = qcel(4,i+1,j,k,l) / rho
 				ee =  qcel(5, i+1, j, k, l)
 				VV = u_pmm*u_pmm + v_pmm*v_pmm + w_pmm*w_pmm 
-				p_pmm = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)
+				p_pmm = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)-B
 				T_pmm = p_pmm/(rho*R)
 				
 				rho = qcel(1,i,j+1,k,l)
@@ -898,7 +897,7 @@ do h = 1, face_num
 				w_mpm = qcel(4,i,j+1,k,l) / rho
 				ee =  qcel(5, i, j+1, k, l)
 				VV = u_mpm*u_mpm + v_mpm*v_mpm + w_mpm*w_mpm 
-				p_mpm = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)
+				p_mpm = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)-B
 				T_mpm = p_mpm/(rho*R)
 				
 				rho = qcel(1,i,j,k+1,l)
@@ -907,7 +906,7 @@ do h = 1, face_num
 				w_mmp = qcel(4,i,j,k+1,l) / rho
 				ee =  qcel(5, i, j, k+1, l)
 				VV = u_mmp*u_mmp + v_mmp*v_mmp + w_mmp*w_mmp 
-				p_mmp = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)
+				p_mmp = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)-B
 				T_mmp = p_mmp/(rho*R)
 				
 				rho = qcel(1,i+1,j+1,k,l)
@@ -916,7 +915,7 @@ do h = 1, face_num
 				w_ppm = qcel(4,i+1,j+1,k,l) / rho
 				ee =  qcel(5, i+1, j+1, k, l)
 				VV = u_ppm*u_ppm + v_ppm*v_ppm + w_ppm*w_ppm 
-				p_ppm = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)
+				p_ppm = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)-B
 				T_ppm = p_ppm/(rho*R)
 				
 				rho = qcel(1,i+1,j,k+1,l)
@@ -925,7 +924,7 @@ do h = 1, face_num
 				w_pmp = qcel(4,i+1,j,k+1,l) / rho
 				ee =  qcel(5, i+1, j, k+1, l)
 				VV = u_pmp*u_pmp + v_pmp*v_pmp + w_pmp*w_pmp 
-				p_pmp = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)
+				p_pmp = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)-B
 				T_pmp = p_pmp/(rho*R)
 				
 				rho = qcel(1,i,j+1,k+1,l)
@@ -934,7 +933,7 @@ do h = 1, face_num
 				w_mpp = qcel(4,i,j+1,k+1,l) / rho
 				ee =  qcel(5, i, j+1, k+1, l)
 				VV = u_mpp*u_mpp + v_mpp*v_mpp + w_mpp*w_mpp 
-				p_mpp = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)
+				p_mpp = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)-B
 				T_mpp = p_mpp/(rho*R)
 				
 				rho = qcel(1,i+1,j+1,k+1,l)
@@ -943,7 +942,7 @@ do h = 1, face_num
 				w_ppp = qcel(4,i+1,j+1,k+1,l) / rho
 				ee =  qcel(5, i+1, j+1, k+1, l)
 				VV = u_ppp*u_ppp + v_ppp*v_ppp + w_ppp*w_ppp 
-				p_ppp = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)
+				p_ppp = (ee-0.5*rho*VV)*(Kcpv - 1.0d0)-B
 				T_ppp = p_ppp/(rho*R)
 				
 				T = (h_mmm*T_mmm + h_pmm*T_pmm + h_mpm*T_mpm + h_mmp*T_mmp &
@@ -1094,7 +1093,7 @@ real :: TG_avg, TS_avg, Area, Pfx_avg, Pfy_avg, Pfz_avg, Vfx_avg, Vfy_avg, Vfz_a
 real :: Thrustx_avg,Thrusty_avg,Thrustz_avg
 real :: TG_up_avg
 
-real(kind = 8) :: mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix
+real(kind = 8) :: mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix, B
 
 real, allocatable:: Tg_local(:), Area_local(:), ss_local(:), ssp_local(:)
 
@@ -1123,6 +1122,9 @@ allocate(ssp_local(16))
   rho0 = 1.1842d0
   p0 = 101300d0
   T0 = p0/R/rho0
+  
+  B = 0d0
+   ! B = 299600000d0 ! for liquid
 
   T_sur = T0
   height = 0.5144
@@ -1240,7 +1242,7 @@ write(*,*) "Start reading mesh data..."
 	write(*,*) "End reading field data"
 	
 	call GradT( qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_force, Thrust, delta, &
-	            T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix, &
+	            T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix, B, &
 	            face_num, n_cube, n_cellx, n_celly, n_cellz, face_normal)
 				
 				
