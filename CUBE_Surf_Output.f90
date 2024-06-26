@@ -811,7 +811,7 @@ end module lag3D_reader
 module T_G
 contains
 
-subroutine GradT(qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_force, Thrust, delta,&
+subroutine GradT(qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_force, Thrust, Y_plus, delta,&
 				 T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix, B, &
                  face_num, n_cube, n_cellx, n_celly, n_cellz, face_normal,cell_area)
 				 
@@ -833,7 +833,7 @@ real, intent(in) :: x(:,:,:,:),y(:,:,:,:),z(:,:,:,:)
 real, intent(inout) :: cmap(:,:)
 real :: cube_xp, cube_xm, cube_yp, cube_ym, cube_zp, cube_zm
 real, intent(out), allocatable ::  TG(:), Tsurf(:), Psurf(:), Shear_stress(:)
-real, intent(out), allocatable ::  P_force(:,:), V_force(:,:), Thrust(:,:)
+real, intent(out), allocatable ::  P_force(:,:), V_force(:,:), Thrust(:,:), Y_plus(:)
 real, allocatable ::  vtemp(:,:), vntemp(:,:), tt(:,:)
 !real :: T_cmap
 real(kind = 8), intent(in) :: delta, T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix, B
@@ -848,7 +848,7 @@ real :: cellsize, temp, h_sum
 real :: h_mmm, h_pmm, h_mpm, h_mmp, h_ppm, h_pmp, h_mpp, h_ppp !weight of 8 corners.
 real :: T_mmm, T_pmm, T_mpm, T_mmp, T_ppm, T_pmp, T_mpp, T_ppp !Temperatures at 8 corners.
 real :: p_mmm, p_pmm, p_mpm, p_mmp, p_ppm, p_pmp, p_mpp, p_ppp !P at 8 corners.
-real :: rho, ee, u, v, w, VV, p, T
+real :: rho, ee, u, v, w, VV, p, T, U_tau
 real :: u_mmm, u_pmm, u_mpm, u_mmp, u_ppm, u_pmp, u_mpp, u_ppp !u at 8 corners.
 real :: v_mmm, v_pmm, v_mpm, v_mmp, v_ppm, v_pmp, v_mpp, v_ppp !v at 8 corners.
 real :: w_mmm, w_pmm, w_mpm, w_mmp, w_ppm, w_pmp, w_mpp, w_ppp !w at 8 corners.
@@ -862,6 +862,7 @@ allocate(Tsurf(face_num))
 allocate(P_force(3,face_num))
 allocate(V_force(3,face_num))
 allocate(Thrust(3,face_num))
+allocate(Y_plus(face_num))
 
 allocate(tt(3,face_num)) ! tangential vector of facets
 allocate(vtemp(3,face_num))
@@ -1079,7 +1080,7 @@ do h = 1, face_num
 				vl = u**2.0 + v**2.0 + w**2.0
 				
 				vn = (face_normal(1,h)*vtemp(1,h) + face_normal(2,h)*vtemp(2,h) + face_normal(3,h)*vtemp(3,h))&
-						/sqrt(face_normal(1,h)**2.0 +face_normal(2,h)**2.0 +face_normal(3,h)**2.0)
+						/max(sqrt(face_normal(1,h)**2.0 +face_normal(2,h)**2.0 +face_normal(3,h)**2.0), 1d-8)
 				
 				do iii = 1, 3
 					vntemp(iii,h) = vn*face_normal(iii,h)
@@ -1104,13 +1105,19 @@ do h = 1, face_num
 				V = vtemp(2,h)
 				W = vtemp(3,h)
 				
-				Thrust(1,h) = (P/T/R*U*U+P-p0) * face_normal(1,h)
-				Thrust(2,h) = (P/T/R*V*V+P-p0) * face_normal(2,h)
-				Thrust(3,h) = (P/T/R*W*W+P-p0) * face_normal(3,h)
+				rho = P/T/R
+				
+				Thrust(1,h) = (rho*U*U+P-p0) * face_normal(1,h)
+				Thrust(2,h) = (rho*V*V+P-p0) * face_normal(2,h)
+				Thrust(3,h) = (rho*W*W+P-p0) * face_normal(3,h)
+				
+				U_tau = sqrt(Shear_stress(h)/rho)
+				
+				Y_plus(h) = rho*U_tau*(delta*cellsize)/mu
 				
 				Tsurf(h) = T+Q_fix/(mu*Cv*Kcpv/Pr)*(delta*cellsize)  ! for Iso heat flux
 				
-				TG(h) = (mu*Cv*Kcpv/Pr)*(T_fix - T)/(delta*cellsize)  ! for Isothemral  
+				TG(h) = -(mu*Cv*Kcpv/Pr)*(T_fix - T)/(delta*cellsize)  ! for Isothemral  
 				
 				if (h .eq. 100) then
 					write(*,*) 'at the facet ', h
@@ -1182,7 +1189,7 @@ real, allocatable :: centriod(:,:)
 real, allocatable :: cell_area(:)
 real, allocatable :: cmap(:,:), TG(:), ss(:), ssp(:)
 real, allocatable :: Tsurf(:),Psurf(:),Shear_stress(:)
-real, allocatable :: P_force(:,:),V_force(:,:),Thrust(:,:)
+real, allocatable :: P_force(:,:),V_force(:,:),Thrust(:,:), Y_plus(:)
 
 real(kind=8) :: delta, T_sur, base_x
 integer :: ios, ierror
@@ -1212,26 +1219,26 @@ allocate(ssp_local(16))
 
 !!!! ================ USER INPUT ================ !!!!
 
-  input_stl_name = 'sphere_0.01m.stl'  
+  input_stl_name = 'output.stl'  
   input_lag_name = 'lag.3D'
   input_mesh_name = 'mesh.g'
-  input_field_name = 'field_0000000800_RE200.q'
+  input_field_name = 'field_0000004800.q'
   
-  input_method = 2 ! 1:using STL 2:using lag particles
+  input_method = 1 ! 1:using STL 2:using lag particles
 
   delta = sqrt(3d0)  ! sqrt(2)*dx is the best
   
-  T_fix = 0.0d0
-  Q_fix = 20000d0
+  T_fix = 300.0d0
+  Q_fix = 0.0d0
 
-  mu0 = 0.00185
+  mu0 = 0.0000185
   Pr = 0.72
-  Cv = 717.5
+  Cv = 1366.67d0
   Kcpv = 1.4d0
   R = 287d0
   
-  rho0 = 1.1842d0
-  p0 = 101300d0
+ rho0 = 1.1842d0
+  p0 = 101325d0
   T0 = p0/R/rho0
   
   B = 0d0
@@ -1331,6 +1338,7 @@ write(*,*) "The face number is :", face_num
   allocate(P_force(3,face_num))
   allocate(V_force(3,face_num))
   allocate(Thrust(3,face_num))
+  allocate(Y_plus(face_num))
 
 if(input_method == 1) then 
 
@@ -1390,7 +1398,7 @@ write(*,*) "Start reading mesh data..."
   
 	write(*,*) "End reading field data"
 	
-	call GradT( qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_force, Thrust, delta, &
+	call GradT( qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_force, Thrust, Y_plus, delta, &
 	            T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix, B, &
 	            face_num, n_cube, n_cellx, n_celly, n_cellz, face_normal,cell_area)
 				
@@ -1477,10 +1485,10 @@ write(*,*) "Start reading mesh data..."
 	! output Surface data 
 	
 	open(1, file = 'Surface_data2.csv', status='replace')  
-	write(1,*) "X, Y, Z, Shear_stress, Psurf, Tsurf, Heat_flux"
+	write(1,*) "X, Y, Z, Shear_stress, Psurf, Tsurf, Heat_flux,Y_plus"
     do xx = 1,face_num  
        write(1,*) centriod(1,xx),",",centriod(2,xx),",",centriod(3,xx),",",&
-	              Shear_stress(xx),",",Psurf(xx),",",Tsurf(xx),",",TG(xx)
+	              Shear_stress(xx),",",Psurf(xx),",",Tsurf(xx),",",TG(xx),",",Y_plus(xx)
     end do  
     close(1) 
 	
