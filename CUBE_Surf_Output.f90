@@ -833,7 +833,7 @@ real, intent(in) :: x(:,:,:,:),y(:,:,:,:),z(:,:,:,:)
 real, intent(inout) :: cmap(:,:)
 real :: cube_xp, cube_xm, cube_yp, cube_ym, cube_zp, cube_zm
 real, intent(out), allocatable ::  TG(:), Tsurf(:), Psurf(:), Shear_stress(:)
-real, intent(out), allocatable ::  P_force(:,:), V_force(:,:), Thrust(:,:), Y_plus(:)
+real, intent(out), allocatable ::  P_force(:,:), V_force(:,:), Thrust(:,:), Y_plus(:), cell_area(:)
 real, allocatable ::  vtemp(:,:), vntemp(:,:), tt(:,:)
 !real :: T_cmap
 real(kind = 8), intent(in) :: delta, T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix, B
@@ -841,7 +841,6 @@ real :: vl, vn, vt, vt_inv, mu
 integer, intent(in) :: face_num
 integer, intent(in) :: n_cube, n_cellx, n_celly, n_cellz
 real, intent(in) :: face_normal(:,:)
-real, intent(out) :: cell_area(:)
 integer :: h,i,j,k,l,ii,jj,kk, iii, jjj, kkk
 real :: i_,j_, k_
 real :: cellsize, temp, h_sum
@@ -867,6 +866,8 @@ allocate(Y_plus(face_num))
 allocate(tt(3,face_num)) ! tangential vector of facets
 allocate(vtemp(3,face_num))
 allocate(vntemp(3,face_num))
+
+allocate(cell_area(face_num))
 
 write(*,*) 'Mu is :', mu0
 
@@ -1219,10 +1220,10 @@ allocate(ssp_local(16))
 
 !!!! ================ USER INPUT ================ !!!!
 
-  input_stl_name = 'output.stl'  
+  input_stl_name = 'sphere_0.01m.stl'  
   input_lag_name = 'lag.3D'
   input_mesh_name = 'mesh.g'
-  input_field_name = 'field_0000004800.q'
+  input_field_name = 'field_0000001196.q'
   
   input_method = 1 ! 1:using STL 2:using lag particles
 
