@@ -840,7 +840,7 @@ real(kind = 8), intent(in) :: delta, T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, 
 real :: vl, vn, vt, vt_inv, mu
 integer, intent(in) :: face_num
 integer, intent(in) :: n_cube, n_cellx, n_celly, n_cellz
-real, intent(in) :: face_normal(:,:)
+real, intent(in) :: face_normal(:,:)						 
 integer :: h,i,j,k,l,ii,jj,kk, iii, jjj, kkk
 real :: i_,j_, k_
 real :: cellsize, temp, h_sum
@@ -1221,7 +1221,7 @@ allocate(ssp_local(16))
   input_mesh_name = 'mesh.g'
   input_field_name = 'field_0000001196.q'
   
-  input_method = 2 ! 1:using STL 2:using lag particles
+  input_method = 1 ! 1:using STL 2:using lag particles
 
   delta = sqrt(3d0)  ! sqrt(2)*dx is the best
   
@@ -1230,12 +1230,12 @@ allocate(ssp_local(16))
 
   mu0 = 0.0000185
   Pr = 0.72
-  Cv = 1366.67d0
+  Cv = 717.67d0
   Kcpv = 1.4d0
   R = 287d0
   
  rho0 = 1.1842d0
-  p0 = 101325d0
+  p0 = 101300d0
   T0 = p0/R/rho0
   
   B = 0d0
