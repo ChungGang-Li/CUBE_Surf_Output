@@ -811,9 +811,9 @@ end module lag3D_reader
 module T_G
 contains
 
-subroutine GradT(qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_force, Thrust, Y_plus, delta,&
+subroutine GradT(qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_force, Thrust, Y_plus, cell_area, delta,&
 				 T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix, B, &
-                 face_num, n_cube, n_cellx, n_celly, n_cellz, face_normal,cell_area)
+                 face_num, n_cube, n_cellx, n_celly, n_cellz, face_normal)
 				 
 				 
 
@@ -862,12 +862,11 @@ allocate(P_force(3,face_num))
 allocate(V_force(3,face_num))
 allocate(Thrust(3,face_num))
 allocate(Y_plus(face_num))
+allocate(cell_area(face_num))
 
 allocate(tt(3,face_num)) ! tangential vector of facets
 allocate(vtemp(3,face_num))
 allocate(vntemp(3,face_num))
-
-allocate(cell_area(face_num))
 
 write(*,*) 'Mu is :', mu0
 
@@ -944,8 +943,6 @@ do h = 1, face_num
 				i = ii+1
 				j = jj+1
 				k = kk+1
-				
-				
 				
 				cell_area(h) = cellsize*cellsize
 				
@@ -1174,23 +1171,22 @@ use T_G
 
 implicit none
 
-character ( len = 255 ) :: input_stl_name
-character ( len = 255 ) :: input_mesh_name
-character ( len = 255 ) :: input_field_name
-character ( len = 255 ) :: input_lag_name
+character ( len = 1000 ) :: input_stl_name
+character ( len = 1000 ) :: input_mesh_name
+character ( len = 1000 ) :: input_field_name
+character ( len = 1000 ) :: input_lag_name
 integer :: input_method
 
 integer :: face_num
 logical :: read_text
-character(len=127) :: line
+character(len=1000) :: line
 logical :: eqi_str
 real, allocatable :: node_xyz(:,:,:)
 real, allocatable :: face_normal(:,:)
 real, allocatable :: centriod(:,:)
-real, allocatable :: cell_area(:)
 real, allocatable :: cmap(:,:), TG(:), ss(:), ssp(:)
 real, allocatable :: Tsurf(:),Psurf(:),Shear_stress(:)
-real, allocatable :: P_force(:,:),V_force(:,:),Thrust(:,:), Y_plus(:)
+real, allocatable :: P_force(:,:),V_force(:,:),Thrust(:,:), Y_plus(:), cell_area(:)
 
 real(kind=8) :: delta, T_sur, base_x
 integer :: ios, ierror
@@ -1225,7 +1221,7 @@ allocate(ssp_local(16))
   input_mesh_name = 'mesh.g'
   input_field_name = 'field_0000001196.q'
   
-  input_method = 1 ! 1:using STL 2:using lag particles
+  input_method = 2 ! 1:using STL 2:using lag particles
 
   delta = sqrt(3d0)  ! sqrt(2)*dx is the best
   
@@ -1328,7 +1324,6 @@ write(*,*) "The face number is :", face_num
   allocate(face_normal(3,face_num))
   allocate(node_xyz(3,3,face_num))
   allocate(centriod(4,face_num))
-  allocate(cell_area(face_num))
   allocate(cmap(3,face_num))
   
   allocate(Tsurf(face_num))
@@ -1340,6 +1335,7 @@ write(*,*) "The face number is :", face_num
   allocate(V_force(3,face_num))
   allocate(Thrust(3,face_num))
   allocate(Y_plus(face_num))
+  allocate(cell_area(face_num))
 
 if(input_method == 1) then 
 
@@ -1399,9 +1395,9 @@ write(*,*) "Start reading mesh data..."
   
 	write(*,*) "End reading field data"
 	
-	call GradT( qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_force, Thrust, Y_plus, delta, &
+	call GradT( qcel, x,y,z, cmap, TG, Tsurf, Psurf, Shear_stress, P_force, V_force, Thrust, Y_plus, cell_area, delta, &
 	            T_sur, mu0, Pr, Cv, Kcpv, R, rho0, p0, T0, T_fix, Q_fix, B, &
-	            face_num, n_cube, n_cellx, n_celly, n_cellz, face_normal,cell_area)
+	            face_num, n_cube, n_cellx, n_celly, n_cellz, face_normal)
 				
 	write(*,*) 'output local average TG...'
 	
